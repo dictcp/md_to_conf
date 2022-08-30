@@ -439,6 +439,22 @@ def add_attachments(page_id, files):
         for file in files:
             upload_attachment(page_id, os.path.join(source_folder, file), '')
 
+def replace_wikilink(page_id, title, html):
+
+    links = re.findall(r'<a class="wikilink" href=".+?">.+?</a>', html)
+    if links:
+        for link in links:
+            matches = re.search(r'<a class="wikilink" href="(.+?)">(.+?)</a>', link)
+            ref = matches.group(1)
+            alt = matches.group(2)
+
+            if not ref.startswith('https://') and not ref.startswith('http://'):
+                page = get_page(ref)
+                if page: 
+                    replacement = '<a class="wikilink" href="%s" title="%s">%s</a>' % (page.link, alt, alt)
+                    html = html.replace(link, replacement)
+
+    return html
 
 def add_local_refs(page_id, title, html):
     """
@@ -634,6 +650,9 @@ def update_page(page_id, title, body, version, ancestors, properties, attachment
     # Add local references
     body = add_local_refs(page_id, title, body)
 
+    # wikilink replacement
+    body = replace_wikilink(page_id, title, body)
+
     url = '%s/rest/api/content/%s' % (CONFLUENCE_API_URL, page_id)
 
     session = requests.Session()
@@ -786,7 +805,7 @@ def main():
 
     with codecs.open(MARKDOWN_FILE, 'r', 'utf-8') as mdfile:
         html = markdown.markdown(mdfile.read(), extensions=['markdown.extensions.tables',
-                                                       'markdown.extensions.fenced_code'])
+                                                       'markdown.extensions.fenced_code', 'mdx_wikilink_plus','pymdownx.tilde'])
 
     html = '\n'.join(html.split('\n')[1:])
 
